@@ -1,32 +1,43 @@
 name: Validate Scalar Configuration
 
 on:
-  # push to main
   push:
     branches:
       - main
     paths:
       - "scalar.config.json"
       - "docs/**"
-  # pull requests
+      - ".github/workflows/validate-scalar-configuration.yml"
   pull_request:
     paths:
       - "scalar.config.json"
       - "docs/**"
+      - ".github/workflows/validate-scalar-configuration.yml"
+
+# The validation job only reads repository contents.
+permissions:
+  contents: read
+
+concurrency:
+  group: scalar-config-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
-    name: Validate scalar.config.json
+    name: Validate Scalar configuration
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
 
-      - name: Validate
-        run: npx @scalar/cli@latest project check-config
+      - name: Validate configuration
+        run: npx --yes @scalar/cli@latest project check-config
