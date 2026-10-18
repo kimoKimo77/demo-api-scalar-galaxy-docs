@@ -1,9 +1,8 @@
-name: Validate Scalar Configuration
+name: Validate Scalar configuration and OpenAPI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "scalar.config.json"
       - "docs/**"
@@ -13,31 +12,39 @@ on:
       - "scalar.config.json"
       - "docs/**"
       - ".github/workflows/validate-scalar-configuration.yml"
+  workflow_dispatch:
 
-# The validation job only reads repository contents.
 permissions:
   contents: read
 
 concurrency:
-  group: scalar-config-${{ github.workflow }}-${{ github.ref }}
+  group: scalar-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate:
-    name: Validate Scalar configuration
+    name: Validate documentation and API contract
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           persist-credentials: false
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-
-      - name: Validate configuration
+      - name: Validate Scalar project configuration
         run: npx --yes @scalar/cli@latest project check-config
+      - name: Validate and bundle OpenAPI contract
+        run: npx --yes @redocly/cli@latest bundle docs/api-reference/openapi.yaml --output /tmp/openapi.bundle.yaml
+      - name: Check for accidentally tracked secret files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)(\.env($|\.)|secrets\.json$|.*\.(pem|key|p12)$)'; then
+            echo 'Potential secret/configuration file is tracked. Remove it and rotate exposed credentials.' >&2
+            exit 1
+          fi
+          echo 'No common environment/secret file names are tracked.'
